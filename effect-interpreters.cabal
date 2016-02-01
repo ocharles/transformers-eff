@@ -17,7 +17,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Control.Effect, Control.Effect.Environment, Control.Effect.Nondeterminism, Control.Effect.Exception, Control.Effect.Coroutine
+  exposed-modules:     Control.Effect, Control.Effect.Environment, Control.Effect.Nondeterminism, Control.Effect.Exception, Control.Effect.Coroutine, Control.Effect.IO
   -- other-modules:       
   other-extensions:    TypeOperators, DeriveDataTypeable, DefaultSignatures, DeriveFunctor, StandaloneDeriving, ExistentialQuantification, FlexibleContexts, FlexibleInstances, FunctionalDependencies, KindSignatures, RankNTypes, UndecidableInstances, MultiParamTypeClasses, GeneralizedNewtypeDeriving
   build-depends:       base >=4.8 && <4.9, transformers >=0.4 && <0.5, pipes, free

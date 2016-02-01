@@ -1,17 +1,22 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Control.Effect.IO (UIO, runUIO, syncIO, MonadUIO(..)) where
+module Control.Effect.IO (UIO, runUIO, syncIO, MonadUIO(..), runExceptionalIO) where
 
 import Control.Effect
-import Control.Effect.Exception
-import Control.Exception (SomeException, try)
+import Control.Effect.Exception hiding (try)
+import Control.Exception (SomeException, throwIO, try)
+import Control.Monad ((>=>))
 import Control.Monad.Trans.Class (lift)
+import qualified Control.Effect.Exception as Ex
 
 -- | Lift an 'IO' action and explictly throw an synchronous IO exceptions that
 -- occur.
 syncIO :: (EffException SomeException m, MonadUIO m) => IO a -> m a
-syncIO io = liftUIO (UIO (try io)) >>= liftException -- TODO This is catching async
+syncIO io = liftUIO (UIO (try io)) >>= liftEither -- TODO This is catching async
+
+runExceptionalIO :: Eff (Either SomeException) IO a -> IO a
+runExceptionalIO = Ex.try >=> either throwIO return
 
 class Monad m => MonadUIO m where
   liftUIO :: UIO a -> m a
