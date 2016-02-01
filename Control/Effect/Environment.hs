@@ -1,5 +1,6 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Control.Effect.Environment where
 
@@ -12,8 +13,14 @@ class Monad m => EffEnvironment env m | m -> env where
 instance Monad m => EffEnvironment env (Eff ((->) env) m) where
   liftEnvironment = liftProgram
 
+instance (EffEnvironment env m, LiftProgram ((->) env) m) => EffEnvironment env (Eff effects m) where
+  liftEnvironment = liftProgram
+
 ask :: (EffEnvironment env m) => m env
 ask = liftEnvironment id
+
+asks :: (EffEnvironment a m) => (a -> b) -> m b
+asks f = fmap f ask
 
 runInEnvironment
   :: Monad m
@@ -25,3 +32,11 @@ runInEnvironment eff env =
                                    k (p env)
                               ,finalize = return}
                eff)
+
+mapEnvironment
+  :: (EffEnvironment env m)
+  => (env -> env') -> Eff ((->) env') m a -> m a
+mapEnvironment f =
+  fmap runIdentity .
+  handle Interpretation {run = \k p -> ask >>= k . p . f
+                        ,finalize = return}
