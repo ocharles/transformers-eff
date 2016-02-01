@@ -13,7 +13,6 @@ module Control.Effect
 
 import Control.Monad
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Cont
 
 -- | The 'Eff' monad transformer is used to write programs that require access to
 -- specific effects. In this library, effects are combined by stacking multiple
@@ -22,7 +21,7 @@ import Control.Monad.Trans.Cont
 -- exceptions (@Either e@). As 'Eff' is a monad transformer, @m@ is the monad
 -- that 'Eff' transforms, which can itself be another instance of 'Eff'.
 newtype Eff effect m a =
-  Eff (forall f x. (forall u. (u -> m (f x)) -> effect u -> m (f x)) -> ContT (f x) m a)
+  Eff (forall (t :: (* -> *) -> * -> *) x. (Monad (t m), MonadTrans t) => (forall u. (u -> t m x) -> effect u -> t m x) -> Cont (t m x) a)
 
 -- | In order to run 'Eff' computations, we need to provide a way to run its
 -- effects in the underlying monad @m@. We use 'handle' to run a specific
@@ -30,10 +29,13 @@ newtype Eff effect m a =
 -- of 'Eff', returning you with the original @a@ now captured under the
 -- result of the effects described by the @effect@ functor.
 handle
-  :: Monad m
-  => Interpretation effect f m -> Eff effect m a -> m (f a)
+  :: (MonadTrans t, Monad m, Monad (t m))
+  => Interpretation effect t f m -> Eff effect m a -> m (f a)
 handle interpreter (Eff m) =
-  evalContT (fmap (finalize interpreter) (m (run interpreter)))
+  (out interpreter)
+    (evalCont (fmap (finalize interpreter)
+                    (m (run interpreter))))
+{-# INLINE handle #-}
 
 -- | Effects can have many different interpretations. We use 'Interpretation' to
 -- provide a specific evaluation strategy for an effect. It is parameterized
@@ -41,9 +43,10 @@ handle interpreter (Eff m) =
 -- functor that we will evaluate into. Interpretations also have access to the
 -- underlying monad @m@ (and are free to incur extra constraints on @m@ if
 -- necessary).
-data Interpretation effect f m =
-  Interpretation {run :: forall a b. (a -> m (f b)) -> effect a -> m (f b) -- ^ 'run' defines how to run programs specified by the @effect@ functor. It is provided both the program to run, but also a continuation for the rest of the program. 'run' is free to invoke this continuation zero, one or many times, in order to build the output of evaluation under some functor @f@.
-                 ,finalize :: forall a. a -> f a -- ^ 'finalize' is used to lift the return type of any computation into @f@. It is usually defined as 'return' or 'pure', and plays a similar role.
+data Interpretation effect (t :: (* -> *) -> * -> *) f m =
+  Interpretation {run :: forall a b. (a -> t m b) -> effect a -> t m b -- ^ 'run' defines how to run programs specified by the @effect@ functor. It is provided both the program to run, but also a continuation for the rest of the program. 'run' is free to invoke this continuation zero, one or many times, in order to build the output of evaluation under some functor @f@.
+                 ,finalize :: forall a. a -> t m a -- ^ 'finalize' is used to lift the return type of any computation into @f@. It is usually defined as 'return' or 'pure', and plays a similar role.
+                 ,out :: forall a. t m a -> m (f a)
                  }
 
 -- | 'LiftProgram' defines an @mtl@-style type class for automatically lifting
@@ -56,25 +59,33 @@ class Monad m => LiftProgram f m | m -> f where
   liftProgram :: f a -> m a
 
 instance Monad m => LiftProgram f (Eff f m) where
-  liftProgram p = Eff (\run -> ContT (\k -> run k p))
+  liftProgram p = Eff (\run -> cont (\k -> run k p))
+  {-# INLINE liftProgram #-}
 
 -- TODO Is this sound? Law-abiding? Desirable?
 instance {-# OVERLAPPABLE #-} (Monad m, Monad (t m), MonadTrans t, LiftProgram f m) => LiftProgram f (t m) where
   liftProgram = lift . liftProgram
+  {-# INLINE liftProgram #-}
 
 instance MonadTrans (Eff effect) where
-  lift m = Eff (\_ -> lift m)
+  lift m = Eff (\_ -> cont (lift m >>= ))
+  {-# INLINE lift #-}
 
 instance Monad m => Functor (Eff effect m) where
   fmap = liftM
+  {-# INLINE fmap #-}
 
 instance Monad m => Applicative (Eff effect m) where
   pure = return
+  {-# INLINE pure #-}
   (<*>) = ap
+  {-# INLINE (<*>) #-}
 
 instance Monad m => Monad (Eff effect m) where
   return a = Eff (\_ -> return a)
+  {-# INLINE return #-}
   Eff x >>= f = Eff (\i -> x i >>= \a -> case f a of Eff m -> m i)
+  {-# INLINE (>>=) #-}
 
 {- $welcome
 
@@ -154,3 +165,32 @@ case, we have to provide a way to lift pure values into the same context as
 'run' - so we simply treat it as success.
 
 -}
+
+-- Redefinition of Control.Monad.Trans.Cont because, surprise surprise, it has
+-- no inline pragmas.
+
+cont :: ((a -> r) -> r) -> Cont r a
+cont = Cont
+{-# INLINE cont #-}
+
+evalCont :: Cont r r -> r
+evalCont m = runCont m id
+{-# INLINE evalCont #-}
+
+newtype Cont r a = Cont { runCont :: (a -> r) -> r }
+
+instance Functor (Cont r) where
+  fmap f m = Cont $ \c -> runCont m (c . f)
+  {-# INLINE fmap #-}
+
+instance Applicative (Cont r) where
+  pure x = Cont ($ x)
+  {-# INLINE pure #-}
+  f <*> v = Cont $ \c -> runCont f $ \g -> runCont v (c . g)
+  {-# INLINE (<*>) #-}
+
+instance Monad (Cont r) where
+  return x = Cont ($ x)
+  {-# INLINE return #-}
+  m >>= k = Cont $ \c -> runCont m (\x -> runCont (k x) c)
+  {-# INLINE (>>=) #-}
