@@ -5,6 +5,7 @@
 module Control.Effect.Environment where
 
 import Control.Effect
+import Control.Monad.Trans.Class (lift)
 import Data.Functor.Identity
 import Control.Monad.Trans.Reader (ReaderT(..))
 
@@ -15,8 +16,8 @@ instance Monad m => EffEnvironment env (Eff ((->) env) m) where
   liftEnvironment = liftProgram
   {-# INLINE liftEnvironment #-}
 
-instance {-# OVERLAPPABLE #-} (EffEnvironment env m, LiftProgram ((->) env) m) => EffEnvironment env (Eff effects m) where
-  liftEnvironment = liftProgram
+instance {-# OVERLAPPABLE #-} (EffEnvironment env m) => EffEnvironment env (Eff effects m) where
+  liftEnvironment = lift . liftEnvironment
   {-# INLINE liftEnvironment #-}
 
 ask :: (EffEnvironment env m) => m env
