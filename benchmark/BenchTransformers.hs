@@ -3,10 +3,11 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module BenchTransformers (right1, right2) where
+module BenchTransformers (right1, right2, sumEnv) where
 
 import Data.Functor.Identity
 import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except
 import qualified Pipes as P
@@ -28,6 +29,9 @@ instance Monad m => MonadChoose (P.ListT m) where
   choose = P.Select . P.each
 
 instance MonadChoose m => MonadChoose (ExceptT e m) where
+  choose = lift . choose
+
+instance MonadChoose m => MonadChoose (ReaderT r m) where
   choose = lift . choose
 
 newtype TooBig = TooBig Integer deriving (Show)
@@ -60,3 +64,9 @@ right1 = runIdentity . runExceptT . runNondeterminism . handle_ . example . choo
 
 right2 :: [Integer] -> Either TooBig [Integer]
 right2 = runIdentity . runExceptT . runNondeterminism . handle_ . example . choose
+
+sumEnv :: Int -> Integer
+sumEnv n =
+  runIdentity .
+  fmap sum .
+  runNondeterminism . flip runReaderT 1 $ choose (replicate n ()) >> ask

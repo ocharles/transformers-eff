@@ -1,10 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module BenchMe (right1, right2) where
+module BenchMe (right1, right2, sumEnvNondet, sumEnv) where
 
 import Control.Effect
 import Control.Effect.Nondeterminism
+import Control.Effect.Environment
 import Control.Effect.Exception
+import Control.Monad
 import Data.Functor.Identity
 
 newtype TooBig = TooBig Integer deriving (Show)
@@ -35,3 +37,15 @@ right1 = runIdentity . try . runNondeterminism . handle_ . example . choose
 
 right2 :: [Integer] -> Either TooBig [Integer]
 right2 = runIdentity . try . runNondeterminism . handle_ . example . choose
+
+sumEnvNondet :: Int -> Integer
+sumEnvNondet n =
+  runIdentity .
+  fmap sum .
+  runNondeterminism . flip runInEnvironment 1 $ choose (replicate n ()) >> ask
+
+sumEnv :: Int -> Integer
+sumEnv n =
+  runIdentity .
+  fmap sum .
+  flip runInEnvironment 1 $ replicateM n ask

@@ -21,4 +21,12 @@ main =
             [Criterion.bench "effect-interpreters" .
              Criterion.whnf BenchMe.right2
             ,Criterion.bench "transformers" .
-             Criterion.whnf BenchTransformers.right2]]
+             Criterion.whnf BenchTransformers.right2]
+    ,Criterion.bgroup "sum-env" $
+     [Criterion.bench "effect-interpreters"
+                      (Criterion.whnf BenchMe.sumEnv 1000)]
+    ,Criterion.bgroup "sum-env-nondet" $
+     [Criterion.bench "effect-interpreters"
+                      (Criterion.whnf BenchMe.sumEnvNondet 1000)
+     ,Criterion.bench "transformers"
+                      (Criterion.whnf BenchTransformers.sumEnv 1000)]]
