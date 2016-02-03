@@ -1,19 +1,20 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Control.Effect
        ( -- $welcome
 
          -- * Core API
-         Eff(..), translate, Interprets(..)) where
+         Eff(..), translate, Interprets, interpret, IsEff) where
 
 import Control.Monad
 import Control.Monad.Morph
 import Control.Monad.Trans.Cont (ContT(..))
+import Data.Functor.Sum
+import GHC.Exts (Constraint)
 
 -- | The 'Eff' monad transformer is used to write programs that require access to
 -- specific effects. In this library, effects are combined by stacking multiple
@@ -23,7 +24,14 @@ import Control.Monad.Trans.Cont (ContT(..))
 -- exceptions (@Either e@). As 'Eff' is a monad transformer, @m@ is the monad
 -- that 'Eff' transforms, which can itself be another instance of 'Eff'.
 newtype Eff f m a =
-  Eff (forall g r. (forall x. f x -> Cont (g r) x) -> (forall x. m x -> Cont (g r) x) -> Cont (g r) a)
+  Eff (forall g r. (forall x. Sum f m x -> Cont (g r) x) -> Cont (g r) a)
+
+-- | The 'IsEff' type family is used to make sure that a given monad stack
+-- is based around 'Eff'. This is important, as it allows us to reason about
+-- Eff-based type classes, knowing that /only/ 'Eff' implements them, thus
+-- giving us the orthogonal-handling properties that we desire.
+type family IsEff (m :: * -> *) :: Constraint where
+  IsEff (Eff f m) = ()
 
 -- NOTE The second argument to Eff is statically determined in translate,
 -- but moving this into the 'MonadTrans' definition seems to half the
@@ -38,8 +46,10 @@ translate :: (Monad m,Monad (t m),MonadTrans t)
           -> Eff f m a
           -> t m a
 translate step (Eff go) =
-  runCont (go (\a -> cont (runContT (step a)))
-              (\a -> cont (\k -> join (lift (fmap k a)))))
+  runCont (go (\sum ->
+                 case sum of
+                   InL a -> cont (runContT (step a))
+                   InR a -> cont (\k -> join (lift (fmap k a)))))
           return
 {-# INLINE translate #-}
 
@@ -49,23 +59,23 @@ translate step (Eff go) =
 -- (such as 'MonadThrow' or 'MonadHTTP') to avoid locking people into this
 -- library, but 'interpret' can be useful to define your own instances of
 -- that type class for 'Eff'.
-class Monad m => Interprets p m | m -> p where
+class (IsEff m, Monad m) => Interprets p m | m -> p where
   interpret :: p a -> m a
 
 instance Monad m => Interprets f (Eff f m) where
-  interpret p = Eff (\i _ -> i p)
+  interpret p = Eff (\i -> i (InL p))
   {-# INLINE interpret #-}
 
-instance {-# OVERLAPPABLE #-} (Monad m, Interprets f m) => Interprets f (Eff g m) where
+instance (Monad m, Interprets f (Eff h m)) => Interprets f (Eff g (Eff h m)) where
   interpret = lift . interpret
   {-# INLINE interpret #-}
 
 instance Functor (Eff f m) where
-  fmap f (Eff g) = Eff (\a b -> fmap f (g a b))
+  fmap f (Eff g) = Eff (\a -> fmap f (g a))
   {-# INLINE fmap #-}
 
 instance Applicative (Eff f m) where
-  pure a = Eff (\_ _ -> pure a)
+  pure a = Eff (\_ -> pure a)
   {-# INLINE pure #-}
   (<*>) = ap
   {-# INLINE (<*>) #-}
@@ -73,11 +83,11 @@ instance Applicative (Eff f m) where
 instance Monad (Eff f m) where
   return = pure
   {-# INLINE return #-}
-  Eff a >>= f = Eff (\u v -> a u v >>= \b -> case f b of Eff g -> g u v)
+  Eff a >>= f = Eff (\u -> a u >>= \b -> case f b of Eff g -> g u)
   {-# INLINE (>>=) #-}
 
 instance MonadTrans (Eff f) where
-  lift m = Eff (\_ l -> l m)
+  lift m = Eff (\l -> l (InR m))
   {-# INLINE lift #-}
 
 {- $welcome

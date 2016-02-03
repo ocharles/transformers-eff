@@ -3,10 +3,12 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Control.Effect.Exception where
+module Control.Effect.Exception
+       (EffException, try, throw, liftEither, effToExceptT, exceptTToEff) where
 
 import Control.Effect
-import Control.Monad.Trans.Class (lift)
+import Control.Monad ((>=>))
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Except
 
 class Monad m => EffException e m | m -> e where
@@ -25,5 +27,13 @@ throw = liftEither . Left
 {-# INLINE throw #-}
 
 try :: Monad m => Eff (Either e) m a -> m (Either e a)
-try = runExceptT . translate (lift . ExceptT . return)
+try = runExceptT . effToExceptT
 {-# INLINE try #-}
+
+effToExceptT :: Monad m => Eff (Either e) m a -> ExceptT e m a
+effToExceptT = translate (lift . ExceptT . return)
+{-# INLINE effToExceptT #-}
+
+exceptTToEff :: (Monad m, EffException e m) => ExceptT e m a -> m a
+exceptTToEff = runExceptT >=> liftEither
+{-# INLINE exceptTToEff#-}
