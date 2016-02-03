@@ -4,12 +4,12 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, pipes, stdenv, transformers, criterion }:
+  f = { mkDerivation, base, pipes, stdenv, transformers, criterion, free }:
       mkDerivation {
         pname = "effect-interpreters";
         version = "0.1.0.0";
         src = ./.;
-        libraryHaskellDepends = [ base pipes transformers criterion ];
+        libraryHaskellDepends = [ base pipes transformers criterion free ];
         homepage = "https://github.com/ocharles/effect-interpreters";
         license = stdenv.lib.licenses.bsd3;
       };
