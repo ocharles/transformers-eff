@@ -6,7 +6,6 @@
 module Control.Effect.Exception where
 
 import Control.Effect
-import Control.Monad (join)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except
 
@@ -26,9 +25,5 @@ throw = liftEither . Left
 {-# INLINE throw #-}
 
 try :: Monad m => Eff (Either e) m a -> m (Either e a)
-try eff =
-  runExceptT
-    (run (\k m -> ExceptT (return m) >>= k)
-         (\m -> ExceptT (join (fmap runExceptT m)))
-         eff)
+try = runExceptT . translate (lift . ExceptT . return)
 {-# INLINE try #-}

@@ -3,17 +3,14 @@
 module Control.Effect.State where
 
 import Control.Effect
-import Control.Monad (join)
-import Control.Monad.Trans.State.Strict (State, StateT(..), mapStateT)
-import Data.Functor.Identity
+import Control.Monad.Morph
+import Control.Monad.Trans.State.Strict (State, StateT(..))
 import qualified Control.Monad.Trans.State.Strict as State
 
 runState :: Monad m
          => Eff (State s) m a -> s -> m (a,s)
-runState eff =
-  runStateT (run (\k m -> mapStateT (return . runIdentity) m >>= k)
-                 (\m -> StateT (\s -> join (fmap (flip runStateT s) m)))
-                 eff)
+runState =
+  runStateT . translate (lift . hoist generalize)
 {-# INLINE runState #-}
 
 evalState :: Monad m => Eff (State s) m a -> s -> m a

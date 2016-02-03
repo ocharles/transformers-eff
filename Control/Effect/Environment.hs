@@ -5,10 +5,8 @@
 module Control.Effect.Environment where
 
 import Control.Effect
-import Control.Monad (join)
-import Control.Monad.Trans.Class (lift)
-import Data.Functor.Identity
-import Control.Monad.Trans.Reader (Reader, ReaderT(..), mapReaderT)
+import Control.Monad.Morph (lift, hoist, generalize)
+import Control.Monad.Trans.Reader (Reader, ReaderT(..))
 import qualified Control.Monad.Trans.Reader as Reader
 
 class Monad m => EffEnvironment env m | m -> env where
@@ -34,13 +32,8 @@ runInEnvironment
   :: Monad m
   => Eff (Reader env) m a -> env -> m a
 runInEnvironment eff env =
-  runReaderT (run up1 up2 eff)
+  runReaderT (translate (lift . hoist generalize) eff)
              env
-  where up1 k m =
-          mapReaderT (return . runIdentity)
-                     m >>=
-          k
-        up2 m = ReaderT (\e -> join (fmap (flip runReaderT e) m))
 {-# INLINE runInEnvironment #-}
 
 mapEnvironment

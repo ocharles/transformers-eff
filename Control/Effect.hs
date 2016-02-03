@@ -9,35 +9,39 @@ module Control.Effect
        ( -- $welcome
 
          -- * Core API
-         Eff, run, Interprets(..)) where
+         Eff(..), translate, Interprets(..)) where
 
 import Control.Monad
-import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Morph
+import Control.Monad.Trans.Cont (ContT(..))
 
 -- | The 'Eff' monad transformer is used to write programs that require access to
 -- specific effects. In this library, effects are combined by stacking multiple
--- 'Eff's together. 'Eff's are parameterized by an effect /algebra/. This is a
+-- 'Eff's together, just as you would do with traditional monad transformers.
+-- 'Eff's are parameterized by an effect /algebra/. This is a
 -- description of programs in a single effect, such as non-determinism (@[]@)or
 -- exceptions (@Either e@). As 'Eff' is a monad transformer, @m@ is the monad
 -- that 'Eff' transforms, which can itself be another instance of 'Eff'.
 newtype Eff f m a =
   Eff (forall g r. (forall x. f x -> Cont (g r) x) -> (forall x. m x -> Cont (g r) x) -> Cont (g r) a)
 
+-- NOTE The second argument to Eff is statically determined in translate,
+-- but moving this into the 'MonadTrans' definition seems to half the
+-- performance in benchmarks.
+
 -- | In order to run 'Eff' computations, we need to provide a way to run its
--- effects in the underlying monad @m@. We use 'handle' to run a specific
--- 'Interpretation' for an effect. Notice that 'handle' eliminates one layer
--- of 'Eff', returning you with the original @a@ now captured under the
+-- effects in a specific monad transformer. Notice that 'run' eliminates one
+-- layer of 'Eff', returning you with the original @a@ now captured under the
 -- result of the effects described by the @effect@ functor.
-run :: (Monad m, Monad n)
-    => (forall x r. (x -> n r) -> f x -> n r)
-    -> (forall r. m (n r) -> n r)
-    -> Eff f m a
-    -> n a
-run step lift_ (Eff go) =
-  runCont (go (\a -> cont (\k -> step k a))
-              (\a -> cont (\k -> lift_ (fmap k a))))
+translate :: (Monad m,Monad (t m),MonadTrans t)
+          => (forall x r. f x -> ContT r (t m) x)
+          -> Eff f m a
+          -> t m a
+translate step (Eff go) =
+  runCont (go (\a -> cont (runContT (step a)))
+              (\a -> cont (\k -> join (lift (fmap k a)))))
           return
-{-# INLINE run #-}
+{-# INLINE translate #-}
 
 -- | 'LiftProgram' defines an @mtl@-style type class for automatically lifting
 -- effects into 'Eff' stacks. When exporting libraries that you intend to
@@ -79,7 +83,30 @@ instance MonadTrans (Eff f) where
 {- $welcome
 
 Welcome to @effect-interpreters@, a composable approach to managing effects in
-functional programming. @effect-interpreters@ provides you with a toolkit to
+Haskell. @effect-interpreters@ is a small abstraction over the ideas of monad
+transformers, the @mtl@, and algebraic effects made popular through free monads
+and various implementations of extensible effects. Rather than defining the
+whole program within a free monad and duplicating code on how to interpret
+well defined effects, this library leverages the tools of the monad transformer
+library to deliver something that is familiar, compatible with other libraries
+and as fast as vanilla monad transformers.
+
+With the marketting pitch out of the way, you may be asking yourself: why does
+this library exist? Firstly, if you use restrict yourself to only using monad
+transformers you incur a lot of boilerplate code by having to specify all the
+necessary @lift@s to move between layers. On top of this, the resulting code
+is extremely difficult to compose with different effects - if you're lucky
+the transformer will be an instance of @MFunctor@ and can be mapped between
+different effects, but again - this is boilerplate that we'd ideally like to
+avoid. The monad transformer library (@mtl@) solves some of these problems by
+moving operations into a type class, but introduces a more subtle problem along
+the way. Consider the following:
+
+@
+lookupPerson :: PersonName -> 
+@
+
+. @effect-interpreters@ provides you with a toolkit to
 write programs that are polymorphic over the choice of monad, stipulating that
 whatever monad is chosen has access to certain underlying effects.
 @effect-interpreters@ comes with the 'Eff' monad to eliminate individual effects
@@ -161,10 +188,6 @@ case, we have to provide a way to lift pure values into the same context as
 cont :: ((a -> r) -> r) -> Cont r a
 cont = Cont
 {-# INLINE cont #-}
-
-evalCont :: Cont r r -> r
-evalCont m = runCont m id
-{-# INLINE evalCont #-}
 
 newtype Cont r a = Cont { runCont :: (a -> r) -> r }
 
