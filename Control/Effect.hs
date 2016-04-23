@@ -5,9 +5,7 @@
 {-# LANGUAGE TypeFamilies #-}
 
 module Control.Effect
-       ( -- $welcome
-
-         -- * Core API
+       ( -- * Core API
          Eff(..), translate, Interprets, interpret, IsEff) where
 
 import Control.Monad
@@ -90,7 +88,7 @@ instance MonadTrans (Eff f) where
   lift m = Eff (\l -> l (InR m))
   {-# INLINE lift #-}
 
-{- $welcome
+{-
 
 Welcome to @effect-interpreters@, a composable approach to managing effects in
 Haskell. @effect-interpreters@ is a small abstraction over the ideas of monad
