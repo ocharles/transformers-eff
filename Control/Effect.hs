@@ -1,8 +1,13 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
+
+#if __GLASGOW_HASKELL__ >=800
+{-# LANGUAGE UndecidableSuperClasses #-}
+#endif
 
 module Control.Effect
        ( -- * Core API
