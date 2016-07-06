@@ -9,7 +9,9 @@ module Control.Effect
          Eff(..), translate, Interprets, interpret, IsEff) where
 
 import Control.Monad
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Morph
+import Control.Monad.Trans.Class(MonadTrans(lift))
 import Control.Monad.Trans.Cont (ContT(..))
 import Data.Functor.Sum
 import GHC.Exts (Constraint)
@@ -87,6 +89,10 @@ instance Monad (Eff f m) where
 instance MonadTrans (Eff f) where
   lift m = Eff (\l -> l (InR m))
   {-# INLINE lift #-}
+
+instance MonadIO m => MonadIO (Eff effect m) where
+  liftIO = lift . liftIO
+  {-# INLINE liftIO #-}
 
 {-
 
