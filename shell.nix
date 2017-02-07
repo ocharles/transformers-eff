@@ -4,13 +4,18 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, pipes, stdenv, transformers, criterion, free, mmorph }:
+  f = { mkDerivation, base, free, list-transformer, mmorph, stdenv
+      , transformers
+      }:
       mkDerivation {
-        pname = "effect-interpreters";
-        version = "0.1.0.0";
+        pname = "transformers-eff";
+        version = "0.2.0.0";
         src = ./.;
-        libraryHaskellDepends = [ base pipes transformers criterion free mmorph ];
-        homepage = "https://github.com/ocharles/effect-interpreters";
+        libraryHaskellDepends = [
+          base free list-transformer mmorph transformers
+        ];
+        homepage = "https://github.com/ocharles/transformers-eff";
+        description = "An approach to managing composable effects, ala mtl/transformers/extensible-effects/Eff";
         license = stdenv.lib.licenses.bsd3;
       };
 
