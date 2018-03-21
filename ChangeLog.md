@@ -1,5 +1,9 @@
 # Revision history for transformers-eff
 
+## 0.2.1.0  -- 2018-03-21
+
+* Upper bounds have been removed. This is due to lack of maintainer time.
+
 ## 0.2.0.0  -- 2017-02-07
 
 ### Breaking Changes
