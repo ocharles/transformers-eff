@@ -17,7 +17,7 @@ library
   exposed-modules:     Control.Effect, Control.Effect.Environment, Control.Effect.Nondeterminism, Control.Effect.Exception, Control.Effect.IO, Control.Effect.State, Control.Effect.Identity
   -- other-modules:
   other-extensions:    TypeOperators, DeriveDataTypeable, DefaultSignatures, DeriveFunctor, StandaloneDeriving, ExistentialQuantification, FlexibleContexts, FlexibleInstances, FunctionalDependencies, KindSignatures, RankNTypes, UndecidableInstances, MultiParamTypeClasses, GeneralizedNewtypeDeriving
-  build-depends:       base >=4.8
+  build-depends:       base >=4.8 && < 5
                      , transformers >=0.4
                      , list-transformer >= 1.0.1
                      , free >= 4.12.4
